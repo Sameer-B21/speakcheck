@@ -10,6 +10,7 @@ const LiveNew: React.FC = () => {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   const intervalRef = useRef<number | null>(null);
   const navigate = useNavigate();
@@ -30,29 +31,46 @@ const LiveNew: React.FC = () => {
     if (stream) videoRef.current?.play();
   }, [stream]);
 
-  // Helper to play audio via HTML5 Audio (replaces react-native-sound-player)
-  const playAudio = (url: string) => {
-    const audio = new Audio(url);
-    audio.play().catch(err => console.error('Audio play error:', err));
-  };
+  const [aiSpeaking, setAiSpeaking] = useState(false);
+  const isPlayingRef = useRef(false);
 
   // Poll /question every 3s and play audio when true
-//   useEffect(() => {
-//     const poll = setInterval(async () => {
-//       try {
-//         const res = await fetch('http://127.0.0.1:5000/question');
-//         if (!res.ok) throw new Error(`Status ${res.status}`);
-//         const data = await res.json();
-//         if (data === true) {
-//           playAudio('http://127.0.0.1:5000/audio');
-//           clearInterval(poll);
-//         }
-//       } catch (err) {
-//         console.error('Error polling /question:', err);
-//       }
-//     }, 3000);
-//     return () => clearInterval(poll);
-//   }, []);
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      if (isPlayingRef.current) return;
+
+      try {
+        const res = await fetch('http://127.0.0.1:5001/question', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const data = await res.json();
+
+        // If question endpoint returns true, AI is ready to speak
+        if (data === true) {
+          isPlayingRef.current = true;
+          setAiSpeaking(true);
+          setStatus('idle'); // clear loading so we can see the UI
+
+          const audio = new Audio('http://127.0.0.1:5001/audio');
+
+          // When AI finishes speaking, let the user record again
+          audio.onended = () => {
+            isPlayingRef.current = false;
+            setAiSpeaking(false);
+            setVideoBlob(null); // Clear previous user recording so they can record a new one
+          };
+
+          audio.play().catch(err => {
+            console.error('Audio play error:', err);
+            isPlayingRef.current = false;
+            setAiSpeaking(false); // fallback if audio fails
+          });
+        }
+      } catch (err) {
+        console.error('Error polling /question:', err);
+      }
+    }, 3000);
+    return () => clearInterval(poll);
+  }, []);
 
   // Start recording
   const startRecording = () => {
@@ -79,6 +97,7 @@ const LiveNew: React.FC = () => {
 
   // Upload video and navigate
   const uploadVideo = async (blob: Blob) => {
+    setStatus('uploading');
     const form = new FormData();
     form.append('file', blob, 'recording.webm');
     try {
@@ -87,22 +106,27 @@ const LiveNew: React.FC = () => {
         body: form,
       });
       if (!res.ok) throw new Error(await res.text());
+      // Don't set success route yet, wait for polling to pick up the AI response
     } catch (err) {
       console.error(err);
+      setStatus('error');
     }
   };
 
   const finishLive = async () => {
     try {
+      setStatus('uploading');
       const res = await fetch(
         `http://127.0.0.1:5001/check/interUpload0.mp4`,
         { method: 'POST' }
       );
       if (!res.ok) throw new Error(`Check failed: ${res.statusText}`);
       // optionally you can await res.json() or res.text() here
+      setStatus('success');
       navigate("/inter");
     } catch (err) {
       console.error(err);
+      setStatus('error');
     }
   };
 
@@ -119,17 +143,40 @@ const LiveNew: React.FC = () => {
         playsInline
         style={{ transform: 'scaleX(-1)' }}
       />
+
       <div className="controls flex items-center space-x-4">
-        <div className="timer font-mono">{formatTime(seconds)}</div>
-        {!recording ? (
-          <button onClick={startRecording} className="btn-record">Record</button>
-        ) : (
-          <button onClick={stopRecording} className="btn-stop">Stop</button>
+        {status === 'idle' && (
+          <>
+            {aiSpeaking ? (
+              <div className="alert alert-info">AI is speaking...</div>
+            ) : (
+              <>
+                <div className="timer font-mono">{formatTime(seconds)}</div>
+                {!recording ? (
+                  <button onClick={startRecording} className="btn-record">Record</button>
+                ) : (
+                  <button onClick={stopRecording} className="btn-stop">Stop</button>
+                )}
+                {!recording && videoBlob && (
+                  <button onClick={() => uploadVideo(videoBlob)} className="btn-record">Upload</button>
+                )}
+                <button onClick={finishLive} className='btn-record'>End Live</button>
+              </>
+            )}
+          </>
         )}
-        {!recording && videoBlob && (
-          <button onClick={() => uploadVideo(videoBlob)} className="btn-record">Upload</button>
+
+        {status === 'uploading' && (
+          <div className="alert alert-info">
+            Loading...
+          </div>
         )}
-        <button onClick={finishLive} className='btn-record'>End Live</button>
+
+        {status === 'error' && (
+          <div className="alert alert-error">
+            Failed to process request. Please try again.
+          </div>
+        )}
       </div>
     </div>
   );

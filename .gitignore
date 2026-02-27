@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 backend/uploads
 backend/google-credentials.json
+
+.env
+

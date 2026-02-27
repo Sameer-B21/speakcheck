@@ -11,6 +11,7 @@ const RecordSpeech: React.FC = () => {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const intervalRef = useRef<number | null>(null);
 
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ const RecordSpeech: React.FC = () => {
   };
 
   const uploadVideo = async (blob: Blob) => {
+    setStatus('uploading');
     const form = new FormData();
     form.append('file', blob, 'recording.webm');
     try {
@@ -75,9 +77,11 @@ const RecordSpeech: React.FC = () => {
       });
       if (!res.ok) throw new Error(await res.text());
       console.log('Upload success');
+      setStatus('success');
       navigate("/display")
     } catch (err) {
       console.error(err);
+      setStatus('error');
     }
   };
 
@@ -89,21 +93,37 @@ const RecordSpeech: React.FC = () => {
   return (
     <div className="record-main flex-col">
       <video
-          ref={videoRef}
-          className="video-preview mirror"
-          muted
-          autoPlay
-          playsInline
-          style={{ transform: 'scaleX(-1)', flex: 1 }}
-        />
+        ref={videoRef}
+        className="video-preview mirror"
+        muted
+        autoPlay
+        playsInline
+        style={{ transform: 'scaleX(-1)', flex: 1 }}
+      />
       <div className="controls">
-        <div className="timer"  style={{ fontFamily: 'monospace' }}>{formatTime(seconds)}</div>
-        {!recording
-          ? <button onClick={startRecording} className="btn-record">Record</button>
-          : <button onClick={stopRecording} className="btn-stop">Stop</button>
-        }
-        {!recording && videoBlob && (
-          <button onClick={() => uploadVideo(videoBlob)} className="btn-record">Upload</button>
+        {status === 'idle' && (
+          <>
+            <div className="timer" style={{ fontFamily: 'monospace' }}>{formatTime(seconds)}</div>
+            {!recording
+              ? <button onClick={startRecording} className="btn-record">Record</button>
+              : <button onClick={stopRecording} className="btn-stop">Stop</button>
+            }
+            {!recording && videoBlob && (
+              <button onClick={() => uploadVideo(videoBlob)} className="btn-record">Upload</button>
+            )}
+          </>
+        )}
+
+        {status === 'uploading' && (
+          <div className="alert alert-info">
+            Loading...
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="alert alert-error">
+            Failed to upload. Please try again.
+          </div>
         )}
       </div>
     </div>

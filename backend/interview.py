@@ -23,7 +23,12 @@ def interview(video):
       .run()
     print("✅ MP3 file created!")
 
-    client = genai.Client(api_key="AIzaSyCB1p1enYCw5nHC8Ek4KRZdqmBBzZsOUXA")
+    # Load environment variables
+    from dotenv import load_dotenv
+    import os
+    load_dotenv()
+
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
     # Upload the MP3 file
     myfile = client.files.upload(file=output_file)

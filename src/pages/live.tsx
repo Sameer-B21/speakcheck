@@ -14,6 +14,7 @@ const LiveSpeech: React.FC = () => {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const intervalRef = useRef<number | null>(null);
 
   const navigate = useNavigate();
@@ -73,6 +74,7 @@ const LiveSpeech: React.FC = () => {
   };
 
   const uploadVideo = async (blob: Blob) => {
+    setStatus('uploading');
     const form = new FormData();
     form.append('file', blob, 'recording.webm');
 
@@ -84,9 +86,11 @@ const LiveSpeech: React.FC = () => {
 
       if (!res.ok) throw new Error(await res.text());
       console.log('Upload success');
+      setStatus('success');
       navigate('/display');
     } catch (err) {
       console.error(err);
+      setStatus('error');
     }
   };
 
@@ -110,47 +114,63 @@ const LiveSpeech: React.FC = () => {
           style={{ transform: 'scaleX(-1)', flex: 1 }}
         />
         <div className='video-preview'>
-            <audio
-                ref={audioRef}
-                src="backend/uploads/test.mp3"
-                controls
-                autoPlay
-                style={{ position: 'absolute', top: 20, left: 20, zIndex: 1 }}
+          <audio
+            ref={audioRef}
+            src="backend/uploads/test.mp3"
+            controls
+            autoPlay
+            style={{ position: 'absolute', top: 20, left: 20, zIndex: 1 }}
+          />
+          <Canvas camera={{ position: [0, 0, 8] }}>
+            <ambientLight intensity={0.3} />
+            <AudioParticles
+              audioRef={audioRef}
+              count={10000}
+              baseRadius={2.5}
+              minRadius={2}
+              radiusFactor={0.5}
+              baseWaveAmp={0.02}
+              audioWaveAmp={0.02}
+              idleWaveAmp={0.005}
+              idleSpeed={0.2}
+              smoothFactor={0.25}
             />
-            <Canvas camera={{ position: [0, 0, 8] }}>
-                <ambientLight intensity={0.3} />
-                <AudioParticles
-                    audioRef={audioRef}
-                    count={10000}
-                    baseRadius={2.5}
-                    minRadius={2}
-                    radiusFactor={0.5}
-                    baseWaveAmp={0.02}
-                    audioWaveAmp={0.02}
-                    idleWaveAmp={0.005}
-                    idleSpeed={0.2}
-                    smoothFactor={0.25}
-                    />
-            </Canvas>
+          </Canvas>
         </div>
       </div>
 
       <div className="controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div className="timer" style={{ fontFamily: 'monospace' }}>{formatTime(seconds)}</div>
-        {!recording ? (
-          <button onClick={startRecording} className="btn-record">
-            Record
-          </button>
-        ) : (
-          <button onClick={stopRecording} className="btn-stop">
-            Stop
-          </button>
+        {status === 'idle' && (
+          <>
+            <div className="timer" style={{ fontFamily: 'monospace' }}>{formatTime(seconds)}</div>
+            {!recording ? (
+              <button onClick={startRecording} className="btn-record">
+                Record
+              </button>
+            ) : (
+              <button onClick={stopRecording} className="btn-stop">
+                Stop
+              </button>
+            )}
+
+            {!recording && videoBlob && (
+              <button onClick={() => uploadVideo(videoBlob)} className="btn-upload">
+                Upload
+              </button>
+            )}
+          </>
         )}
 
-        {!recording && videoBlob && (
-          <button onClick={() => uploadVideo(videoBlob)} className="btn-upload">
-            Upload
-          </button>
+        {status === 'uploading' && (
+          <div className="alert alert-info">
+            Loading...
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="alert alert-error">
+            Failed to upload. Please try again.
+          </div>
         )}
       </div>
     </div>

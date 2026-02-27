@@ -71,8 +71,13 @@ Be as precise as possible about timestamps (e.g. "0:07-0:14"). Do not output any
 
 
 def analyze(video):
+    # Load environment variables
+    from dotenv import load_dotenv
+    import os
+    load_dotenv()
+    
     # Step 1: Set up the Gemini client
-    client = genai.Client(api_key="AIzaSyCB1p1enYCw5nHC8Ek4KRZdqmBBzZsOUXA")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
     # Step 2: Upload the video
     myfile = client.files.upload(file=video)
@@ -90,7 +95,7 @@ def analyze(video):
 
     # Step 4: Generate response
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=[
             status,
             prompt

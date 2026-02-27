@@ -124,6 +124,11 @@ def upload_interview():
     # 3) Run your analysis on the right file
     interview(final_path)
     analyze(final_path)
+    
+    # Trigger the question so the frontend polling will pick it up
+    global question_triggered
+    question_triggered = True
+    
     socketio.emit('question_ready')
     print("🔔 Emitted question_ready event")
 
@@ -187,7 +192,7 @@ def question():
 @app.route('/audio')
 def serve_audio():
     """Serve the latest TTS audio, with Range support for streaming."""
-    audio_path = "/Users/ramiljiwani/Desktop/ReactApps/speakcheck/backend/out.wav"
+    audio_path = os.path.join(app.root_path, 'out.wav')
     if not os.path.exists(audio_path):
         return {'error': 'Audio not found'}, 404
     return send_file(
@@ -199,4 +204,4 @@ def serve_audio():
 
 if __name__ == '__main__':
     # eventlet = green threads; set debug=False in production
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
